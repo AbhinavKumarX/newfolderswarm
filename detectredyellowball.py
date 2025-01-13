@@ -28,7 +28,7 @@ def detect_and_draw_circles(video, mask):
         param2=30,
         minRadius=20,
         maxRadius=100
-    
+    )
 
     if circles is not None:
         circles = np.uint16(np.around(circles))

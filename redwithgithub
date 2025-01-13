@@ -2,10 +2,10 @@ import cv2
 import numpy as np
 
 # Specifying upper and lower ranges of color to detect in HSV format
-# lower_red1 = np.array([0, 170, 100])    # Lower range of red
-# upper_red1 = np.array([10, 255, 255])
-# lower_red2 = np.array([170, 170, 100])  # Upper range of red
-# upper_red2 = np.array([180, 255, 255])
+lower_red1 = np.array([0, 170, 100])    # Lower range of red
+upper_red1 = np.array([10, 255, 255])
+lower_red2 = np.array([170, 170, 100])  # Upper range of red
+upper_red2 = np.array([180, 255, 255])
 
 # Capturing webcam footage
 webcam_video = cv2.VideoCapture(0)
@@ -24,9 +24,9 @@ while True:
     img_hsv = cv2.cvtColor(video, cv2.COLOR_BGR2HSV)
 
     # Create a mask for red color
-    # mask1 = cv2.inRange(img_hsv, lower_red1, upper_red1)
-    # mask2 = cv2.inRange(img_hsv, lower_red2, upper_red2)
-    # red_mask = mask1 | mask2
+    mask1 = cv2.inRange(img_hsv, lower_red1, upper_red1)
+    mask2 = cv2.inRange(img_hsv, lower_red2, upper_red2)
+    red_mask = mask1 | mask2
 
     # Apply GaussianBlur to reduce noise and improve circle detection
     blurred_mask = cv2.GaussianBlur(red_mask, (9, 9), 2)
