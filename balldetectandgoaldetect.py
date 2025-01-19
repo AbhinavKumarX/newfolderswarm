@@ -33,7 +33,7 @@ def detect_and_draw_circles(video, mask, color_name):
         param1=100,
         param2=30,
         minRadius=40,
-        maxRadius=200
+        maxRadius=150
     )
 
     center_x, center_y = -1, -1  # Default values if no circle is detected
@@ -49,22 +49,24 @@ def detect_and_draw_circles(video, mask, color_name):
 
     return center_x, center_y
 
-def detect_pink_center(video, mask):
-    """Detect the center of the pink-colored object using moments."""
+def detect_pink_center(video, mask, min_area=500):
+    """Detect the center of a sufficiently large pink-colored object using moments."""
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if contours:
         # Find the largest contour
         largest_contour = max(contours, key=cv2.contourArea)
-        # Calculate moments
-        moments = cv2.moments(largest_contour)
-        if moments["m00"] != 0:
-            center_x = int(moments["m10"] / moments["m00"])
-            center_y = int(moments["m01"] / moments["m00"])
-            # Draw center point and contour
-            cv2.drawContours(video, [largest_contour], -1, (0, 255, 255), 2)
-            cv2.circle(video, (center_x, center_y), 5, (0, 0, 255), -1)
-            cv2.putText(video, f"Pink ({center_x}, {center_y})", (center_x - 50, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            return center_x, center_y
+        # Check if the area of the largest contour meets the minimum area requirement
+        if cv2.contourArea(largest_contour) >= min_area:
+            # Calculate moments
+            moments = cv2.moments(largest_contour)
+            if moments["m00"] != 0:
+                center_x = int(moments["m10"] / moments["m00"])
+                center_y = int(moments["m01"] / moments["m00"])
+                # Draw center point and contour
+                cv2.drawContours(video, [largest_contour], -1, (0, 255, 255), 2)
+                cv2.circle(video, (center_x, center_y), 5, (0, 0, 255), -1)
+                cv2.putText(video, f"Pink ({center_x}, {center_y})", (center_x - 50, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                return center_x, center_y
     return -1, -1
 
 def process_center_position(center_x, center_y, frame_width, frame_height, color_name):
