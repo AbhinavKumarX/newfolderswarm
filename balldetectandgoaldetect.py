@@ -2,25 +2,31 @@ import cv2
 import numpy as np
 
 def get_hsv_ranges():
-    """Define HSV ranges for red and pink colors."""
+    """Define HSV ranges for red, pink, and white colors."""
+ 
     # Define red HSV ranges
     red_ranges = [
         (np.array([0, 170, 100]), np.array([10, 255, 255])),
         (np.array([170, 170, 100]), np.array([180, 255, 255]))
     ]
+
     # Define pink HSV range
     pink_range = (np.array([140, 100, 100]), np.array([170, 255, 255]))
 
-    return red_ranges, pink_range
+    # Define white HSV range
+    white_range = (np.array([0, 0, 200]), np.array([180, 50, 255]))
 
-def create_combined_mask(img_hsv, red_ranges, pink_range):
-    """Create a combined mask for red and pink colors."""
+    return red_ranges, pink_range, white_range
+
+def create_combined_mask(img_hsv, red_ranges, pink_range, white_range):
+    """Create a combined mask for red, pink, and white colors."""
     # Combine red masks
     red_mask = sum(cv2.inRange(img_hsv, lower, upper) for lower, upper in red_ranges)
     # Create pink mask
     pink_mask = cv2.inRange(img_hsv, *pink_range)
+    white_mask = cv2.inRange(img_hsv, *white_range)
 
-    return red_mask, pink_mask
+    return red_mask, pink_mask, white_mask
 
 def detect_and_draw_circles(video, mask, color_name):
     """Detect circles in the mask and draw them on the video frame."""
@@ -49,6 +55,27 @@ def detect_and_draw_circles(video, mask, color_name):
 
     return center_x, center_y
 
+def detect_white_dots(video, mask, frame_center_x, frame_width_tolerance):
+    """Detect white dots in the specified range around the screen center and count them."""
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    dot_count = 0
+
+    for contour in contours:
+        if cv2.contourArea(contour) < 10:  # Ignore very small areas
+            continue
+
+        x, y, w, h = cv2.boundingRect(contour)
+        dot_center_x = x + w // 2
+
+        if abs(dot_center_x - frame_center_x) <= frame_width_tolerance:
+            dot_count += 1
+            cv2.circle(video, (dot_center_x, y + h // 2), 2, (0, 255, 0), -1)  # Point-sized dot
+
+    if dot_count > 0:
+        cv2.putText(video, f"White Dots: {dot_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+    return dot_count
+
 def detect_pink_center(video, mask, min_area=500):
     """Detect the center of a sufficiently large pink-colored object using moments."""
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -70,22 +97,33 @@ def detect_pink_center(video, mask, min_area=500):
     return -1, -1
 
 def process_center_position(center_x, center_y, frame_width, frame_height, color_name):
-    """Process the position of the detected center and print coordinates relative to screen center."""
-    if center_x == -1 or center_y == -1:
-        print(f"{color_name} center not detected: Object not in frame.")
-        return
-
-    # Calculate relative coordinates
+    """Process the position of the detected center and provide movement commands."""
     screen_center_x = frame_width // 2
     screen_center_y = frame_height // 2
 
+    if center_x == -1 or center_y == -1:
+        # Object not in frame
+        print(f"{color_name} center not detected: Object not in frame. Turning left.")
+        return "fl"
+
+    # Calculate relative coordinates
     relative_x = center_x - screen_center_x
     relative_y = screen_center_y - center_y  # Invert Y-axis to match standard cartesian coordinates
 
-    print(f"{color_name} object detected at relative coordinates: ({relative_x}, {relative_y})")
+    if relative_x < -15:  # Object is to the left of the center
+        print(f"{color_name} object detected at relative coordinates: ({relative_x}, {relative_y}). Turning left.")
+        return "fl"
+    elif relative_x > 15:  # Object is to the right of the center
+        print(f"{color_name} object detected at relative coordinates: ({relative_x}, {relative_y}). Turning right.")
+        return "fr"
+    else:
+        # Object is close to the center
+        print(f"{color_name} object detected at relative coordinates: ({relative_x}, {relative_y}). Keeping centered.")
+        return "f"
+
 
 def main():
-    red_ranges, pink_range = get_hsv_ranges()
+    red_ranges, pink_range, white_range = get_hsv_ranges()
     webcam_video = cv2.VideoCapture(0)
 
     if not webcam_video.isOpened():
@@ -100,12 +138,13 @@ def main():
 
         # Get frame dimensions
         frame_height, frame_width, _ = video.shape
+        frame_center_x = frame_width // 2
 
         # Convert frame to HSV color space
         img_hsv = cv2.cvtColor(video, cv2.COLOR_BGR2HSV)
 
-        # Create masks for red and pink
-        red_mask, pink_mask = create_combined_mask(img_hsv, red_ranges, pink_range)
+        # Create masks for red, pink, and white
+        red_mask, pink_mask, white_mask = create_combined_mask(img_hsv, red_ranges, pink_range, white_range)
 
         # Detect and draw circles for red
         red_center_x, red_center_y = detect_and_draw_circles(video, red_mask, "Red")
@@ -113,12 +152,15 @@ def main():
         # Detect center for pink objects
         pink_center_x, pink_center_y = detect_pink_center(video, pink_mask)
 
+        # Detect and count white dots in the specified range
+        detect_white_dots(video, white_mask, frame_center_x, frame_width_tolerance=10)
+
         # Process center positions for red and pink
         process_center_position(red_center_x, red_center_y, frame_width, frame_height, "Red")
         process_center_position(pink_center_x, pink_center_y, frame_width, frame_height, "Pink")
 
         # Display the video feed and masks
-        combined_mask = red_mask | pink_mask
+        combined_mask = red_mask | pink_mask | white_mask
         cv2.imshow("Mask Image", combined_mask)
         cv2.imshow("Video Feed", video)
 
